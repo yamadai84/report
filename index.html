@@ -120,6 +120,10 @@
              border:3px solid var(--accent-soft); border-top-color:var(--accent); animation:spin 1s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
   /* 担当者別 */
+  .sort-bar { display:flex; gap:6px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  .sort-bar span { color:var(--muted); font-size:13px; margin-right:2px; }
+  .sort-bar button { padding:6px 14px; font-size:13px; }
+  .sort-bar button.current { background:var(--accent); color:#fff; border-color:var(--accent); }
   .people { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
   .person { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:14px;
             padding:14px; text-align:left; box-shadow:0 2px 8px var(--shadow); }
@@ -277,6 +281,10 @@
   const UNREPLIED_SINCE = new Date(2026, 8, 1).getTime(); // 未返信の対象：2026/9/1以降
   const UNREPLIED_MONTHS = 3;        // 未返信の対象：直近3ヶ月
   const PERSON_HIDE_YEARS = 1;       // 担当者別：この年数以上更新がない人は非表示
+  // 担当者別「五十音順」用の読み仮名（漢字の名前を正確に並べたいときに追加）
+  //   例： '村上未来': 'むらかみみらい',
+  const NAME_READINGS = {
+  };
   const REPLIES = '__replies';       // 「新着の返信」（閲覧用）／「返信一覧」（講師用）タブの識別子
   const NEW_REPLY_DAYS = 7;          // この日数以内の返信に NEW を付ける
   const isAllView = (v) => v === PERSON || v === UNREPLIED || v === REPLIES; // 全スプレッドシートをまとめて見る画面
@@ -696,6 +704,14 @@
     $('viewNote').classList.toggle('hidden', !text);
   }
 
+  // 担当者別の並び順（'name' か 'latest'。選んだものはこの端末に記憶）
+  function personSort() {
+    if (!state.personSort) {
+      try { state.personSort = localStorage.getItem('personSort'); } catch (e) {}
+    }
+    return state.personSort === 'latest' ? 'latest' : 'name';
+  }
+
   function renderPeople() {
     const q = $('search').value.trim().toLowerCase();
     const list = $('list');
@@ -715,7 +731,7 @@
       return;
     }
 
-    // 担当者一覧（名前順）
+    // 担当者一覧（五十音順／最新更新順）
     const map = new Map();
     allReports().forEach(r => peopleOf(r).forEach(name => {
       const key = normalize(name);
@@ -727,8 +743,22 @@
     cutoff.setFullYear(cutoff.getFullYear() - PERSON_HIDE_YEARS);
     const people = [...map.values()]
       .filter(p => p.latestTime >= cutoff.getTime())
-      .filter(p => !q || p.name.toLowerCase().includes(q))
-      .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+      .filter(p => !q || p.name.toLowerCase().includes(q));
+    const sortBy = personSort();
+    const reading = (p) => NAME_READINGS[p.key] || NAME_READINGS[p.name] || p.name;
+    people.sort(sortBy === 'latest'
+      ? (a, b) => b.latestTime - a.latestTime
+      : (a, b) => reading(a).localeCompare(reading(b), 'ja'));
+
+    // 並び替えボタン
+    const bar = el('div', 'sort-bar');
+    bar.appendChild(el('span', '', '並び替え：'));
+    [['name', '五十音順'], ['latest', '最新更新が新しい順']].forEach(([key, label]) => {
+      const b = el('button', 'ghost' + (sortBy === key ? ' current' : ''), label);
+      b.onclick = () => { try { localStorage.setItem('personSort', key); } catch (e) {} state.personSort = key; render(); };
+      bar.appendChild(b);
+    });
+    list.appendChild(bar);
     $('pager').innerHTML = '';
     $('count').textContent = people.length + '人';
     if (!people.length) { list.appendChild(el('div', 'empty', '該当する担当者はいません')); return; }
