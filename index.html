@@ -179,6 +179,13 @@
     .period input { flex:1 1 0; min-width:0; }
     .card { padding:14px 12px; }
   }
+  /* 月報 */
+  .monthly-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+  .monthly-bar label { color:var(--muted); font-size:13px; }
+  .monthly-bar select { flex:1 1 220px; min-width:0; }
+  .doc-frame { display:block; width:100%; min-height:240px; border:0; border-radius:14px;
+               background:#fff; box-shadow:0 2px 8px var(--shadow); }
+
   /* 講師用：閲覧用ページのプレビュー */
   .preview-bar { background:#fff3c4; color:#6b4f00; text-align:center; font-size:13px;
                  padding:6px 12px; display:flex; justify-content:center; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -274,7 +281,7 @@
     <nav class="tabs" id="tabs"></nav>
     <p class="view-note hidden" id="viewNote"></p>
     <section class="latest hidden" id="latest"></section>
-    <div class="toolbar">
+    <div class="toolbar" id="filterBar">
       <select id="classFilter"><option value="">すべての教室</option></select>
       <input id="search" type="search" placeholder="キーワードで絞り込み（名前・日付など）">
       <button class="ghost" id="reloadBtn" title="スプレッドシートから最新を読み直します">最新に更新</button>
@@ -284,7 +291,7 @@
       <input type="date" id="from"> 〜 <input type="date" id="to">
       <button class="ghost" id="clearPeriod">クリア</button>
     </div>
-    <div class="status"><span id="count"></span><span id="updated"></span></div>
+    <div class="status" id="statusBar"><span id="count"></span><span id="updated"></span></div>
     <div id="list"></div>
     <nav class="pager" id="pager"></nav>
   </main>
@@ -302,6 +309,7 @@
   };
   const REPLIES = '__replies';       // 「新着の返信」（閲覧用）／「返信一覧」（講師用）タブの識別子
   const NEW_REPLY_DAYS = 7;          // この日数以内の返信に NEW を付ける
+  const MONTHLY = '__monthly';       // 「月報」タブ（Google ドキュメント）の識別子
   const isAllView = (v) => v === PERSON || v === UNREPLIED || v === REPLIES; // 全スプレッドシートをまとめて見る画面
   const PAGE_SIZE = 30;      // 1ページの件数
   const LATEST_DAYS = 7;     // 「最新の更新」に出す日数
@@ -391,7 +399,8 @@
     state.openId = null;
     if (on && state.view === UNREPLIED) state.view = state.sources[0].key; // 閲覧用にないタブからは移動
     applyRoleUI();
-    if (isAllView(state.view)) openAllView(state.view, false); else loadSource(state.view, false);
+    if (state.view === MONTHLY) renderAll();
+    else if (isAllView(state.view)) openAllView(state.view, false); else loadSource(state.view, false);
     window.scrollTo(0, 0);
   }
 
@@ -401,7 +410,8 @@
     state.preview = false;
     applyRoleUI();
     const v = load('view');
-    if (v === PERSON || v === REPLIES || (v === UNREPLIED && state.role === 'admin')) openAllView(v, false);
+    if (v === MONTHLY) openMonthly();
+    else if (v === PERSON || v === REPLIES || (v === UNREPLIED && state.role === 'admin')) openAllView(v, false);
     else loadSource(v, false);
   }
 
@@ -453,13 +463,15 @@
   function renderAll() {
     renderTabs();
     const isPerson = state.view === PERSON;
+    const isMonthly = state.view === MONTHLY;
+    ['filterBar', 'statusBar', 'pager'].forEach(id => $(id).classList.toggle('hidden', isMonthly));
     $('classFilter').classList.toggle('hidden', isAllView(state.view));
-    $('periodBar').classList.toggle('hidden', isPerson && !state.person);
+    $('periodBar').classList.toggle('hidden', (isPerson && !state.person) || isMonthly);
     renderLatest();
     renderViewNote();
     $('search').placeholder = isPerson && !state.person
       ? '担当者名で絞り込み' : 'キーワードで絞り込み（名前・日付など）';
-    if (!isAllView(state.view)) fillClasses();
+    if (!isAllView(state.view) && !isMonthly) fillClasses();
     render();
   }
 
@@ -476,12 +488,14 @@
       items.push({ key: REPLIES, label: '新着の返信' + (fresh ? `（${fresh}）` : '') });
     }
     items.push({ key: PERSON, label: '担当者別' });
+    items.push({ key: MONTHLY, label: '月報' });
     items.forEach(t => {
       const b = el('button', t.key === state.view ? 'active' : '', t.label);
       b.onclick = () => {
         clearFilters();
         state.person = null; state.latestOpen = false;
-        if (isAllView(t.key)) openAllView(t.key, false); else loadSource(t.key, false);
+        if (t.key === MONTHLY) openMonthly();
+        else if (isAllView(t.key)) openAllView(t.key, false); else loadSource(t.key, false);
       };
       tabs.appendChild(b);
     });
@@ -504,6 +518,7 @@
     if (state.view === PERSON) return renderPeople();
     if (state.view === UNREPLIED) return renderUnreplied();
     if (state.view === REPLIES) return renderReplies();
+    if (state.view === MONTHLY) return renderMonthly();
     const d = state.data[state.view];
     if (!d) return;
     const cls = $('classFilter').value;
@@ -728,9 +743,100 @@
     return wrap;
   }
 
+  // ===== 月報（Google ドキュメントのタブをそのまま表示） =====
+  function openMonthly() {
+    state.view = MONTHLY; store('view', MONTHLY);
+    state.person = null;
+    renderAll();
+  }
+
+  async function renderMonthly() {
+    const list = $('list');
+    list.innerHTML = '';
+    if (!state.monthlyTabs) {
+      list.innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>';
+      try {
+        state.monthlyTabs = await call('getMonthlyTabs', state.token);
+      } catch (e) { handleError(e); return; }
+      if (state.view === MONTHLY) renderMonthly();
+      return;
+    }
+    const tabs = state.monthlyTabs;
+    if (!tabs.length) { list.appendChild(el('div', 'empty', '月報がまだありません')); return; }
+
+    // 見たい月報を選ぶメニュー（子タブは字下げ）。選んだものはこの端末に記憶
+    let cur = state.monthlyTab;
+    if (!cur) { try { cur = localStorage.getItem('monthlyTab'); } catch (e) {} }
+    if (!tabs.some(t => t.id === cur)) cur = tabs[0].id;
+    state.monthlyTab = cur;
+
+    const bar = el('div', 'monthly-bar');
+    const sel = el('select');
+    sel.setAttribute('aria-label', '表示する月報');
+    tabs.forEach(t => {
+      const o = el('option', '', '　'.repeat(t.level) + t.title);
+      o.value = t.id;
+      sel.appendChild(o);
+    });
+    sel.value = cur;
+    sel.onchange = () => {
+      state.monthlyTab = sel.value;
+      try { localStorage.setItem('monthlyTab', sel.value); } catch (e) {}
+      showMonthlyTab(false);
+    };
+    const reload = el('button', 'ghost', '最新に更新');
+    reload.onclick = () => showMonthlyTab(true);
+    bar.append(el('label', '', '表示する月報'), sel, reload);
+    list.append(bar, el('div', 'monthly-frame'));
+    showMonthlyTab(false);
+  }
+
+  async function showMonthlyTab(force) {
+    const box = document.querySelector('.monthly-frame');
+    if (!box) return;
+    const id = state.monthlyTab;
+    state.monthlyHtml = state.monthlyHtml || {};
+    box.innerHTML = '<div class="loading"><div class="spinner"></div>月報を読み込み中…</div>';
+    try {
+      if (force) delete state.monthlyHtml[id];
+      if (!state.monthlyHtml[id]) state.monthlyHtml[id] = await call('getMonthlyTab', state.token, id);
+    } catch (e) { handleError(e); return; }
+    if (state.view !== MONTHLY || state.monthlyTab !== id) return; // 読み込み中に別の月報が選ばれた
+
+    // ドキュメントの見た目をサイトのデザインと混ぜないよう、独立した枠（iframe）に表示する
+    const frame = document.createElement('iframe');
+    frame.className = 'doc-frame';
+    frame.title = '月報';
+    frame.setAttribute('sandbox', 'allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+    frame.srcdoc = prepareDocHtml(state.monthlyHtml[id].html);
+    frame.onload = () => {
+      const doc = frame.contentDocument;
+      const fit = () => { frame.style.height = doc.documentElement.scrollHeight + 'px'; };
+      fit();
+      new ResizeObserver(fit).observe(doc.body);
+      doc.querySelectorAll('img').forEach(img => img.addEventListener('load', fit));
+    };
+    box.innerHTML = '';
+    box.appendChild(frame);
+  }
+
+  // Google ドキュメントの HTML を画面幅に合わせる（文字の体裁はそのまま）
+  function prepareDocHtml(html) {
+    const fix = `<base target="_blank"><style>
+      html, body { margin:0 !important; }
+      body { max-width:none !important; padding:28px 32px !important; background:#fff !important; box-sizing:border-box; }
+      img { max-width:100% !important; height:auto !important; margin:0 !important; transform:none !important; }
+      span:has(> img) { max-width:100% !important; width:auto !important; height:auto !important; }
+      table { max-width:100% !important; }
+      @media (max-width:600px) { body { padding:16px 14px !important; } }
+    </style>`;
+    return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, m => m + fix) : fix + html;
+  }
+
   // タブの一番上に出す説明文
   function renderViewNote() {
     const notes = {
+      [MONTHLY]: 'Googleドキュメント「月報」の内容をそのまま表示しています。下のメニューから見たい月報を選んでください。',
       [REPLIES]: isAdminView()
         ? 'これまでの返信を新しい順に表示しています。返信者名や返信内容でも検索できます。行を押すと報告書が開きます。'
         : `講師からの返信を新しい順に表示しています。${NEW_REPLY_DAYS}日以内の返信には NEW が付きます。行を押すと報告書が開きます。`,
@@ -889,7 +995,7 @@
   $('previewBtn').onclick = () => setPreview(true);
   $('previewBackBtn').onclick = () => setPreview(false);
   $('logoutBtn').onclick = () => { call('logout', state.token).catch(() => {}); showLogin(); };
-  $('reloadBtn').onclick = () => isAllView(state.view) ? openAllView(state.view, true) : loadSource(state.view, true);
+  $('reloadBtn').onclick = () => state.view === MONTHLY ? showMonthlyTab(true) : isAllView(state.view) ? openAllView(state.view, true) : loadSource(state.view, true);
   const refilter = () => { state.page = 1; render(); };
   $('search').oninput = refilter;
   $('classFilter').onchange = refilter;
