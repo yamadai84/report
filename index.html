@@ -67,6 +67,10 @@
   .view-note { color:var(--muted); font-size:13px; margin:0 0 12px; padding:8px 12px;
                background:var(--card); border-radius:10px; border:1px solid var(--line); }
   .latest-item .open { color:var(--muted); font-size:12px; }
+  .latest-item .snippet { flex:1 1 100%; color:var(--muted); font-size:13px;
+                          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .new { font-size:11px; font-weight:700; color:#fff; background:var(--danger);
+         border-radius:6px; padding:0 6px; }
   .unreplied-row .card { margin:6px 0 12px; }
   button:disabled { opacity:.5; cursor:default; }
   input, textarea, select { font:inherit; color:var(--text); padding:9px 12px; border:1px solid var(--line);
@@ -167,6 +171,19 @@
     .period input { flex:1 1 0; min-width:0; }
     .card { padding:14px 12px; }
   }
+  /* サイトの使用方法 */
+  .guide { background:var(--card); border:1px solid var(--line); border-radius:14px;
+           padding:0 16px; margin-bottom:14px; box-shadow:0 2px 8px var(--shadow); }
+  .guide summary { cursor:pointer; padding:12px 0; font-weight:700; color:var(--accent-strong);
+                   list-style:none; display:flex; justify-content:space-between; align-items:center; }
+  .guide summary::-webkit-details-marker { display:none; }
+  .guide summary::after { content:"▼ 開く"; font-size:12px; font-weight:500; color:var(--muted); }
+  .guide[open] summary::after { content:"▲ 閉じる"; }
+  .guide-body { padding:0 0 14px; font-size:14px; border-top:1px dashed var(--line); }
+  .guide-body h4 { margin:14px 0 2px; font-size:14px; color:var(--accent-strong); }
+  .guide-body p { margin:4px 0; }
+  .guide-body .small { color:var(--muted); font-size:13px; }
+  .guide-body .closing { margin-top:14px; font-weight:700; }
   .hidden { display:none !important; }
 </style>
 </head>
@@ -196,6 +213,45 @@
   </header>
   </div>
   <main>
+    <!-- サイトの使用方法（閲覧用） -->
+    <details class="guide hidden" id="guideViewer">
+      <summary>📖 サイトの使用方法</summary>
+      <div class="guide-body">
+        <p>それぞれの講師が提出した報告書のデータを閲覧することができます。</p>
+        <p>「アクティブ」「チーム」と、クラス種別ごとにタブが分かれています。<br>
+           また、講師ごとに報告レポートを読むことができます。</p>
+        <h4>■ チーフ講師からの返信について</h4>
+        <p>返信があると、それぞれの報告書の下にコメントがついてきます。</p>
+        <h4>■ 講師から探す</h4>
+        <p>講師名から報告書を読むこともできます。ただし表記揺れには対応していません。<br>
+           提出してもらう際、なるべく名前は統一させてください。</p>
+        <p class="small">※最終更新から1年が経つと、その名義のボタンは消滅します。</p>
+        <h4>■ 更新</h4>
+        <p>10分に一度自動更新されます。ボタンから更新も可能です。</p>
+        <h4>■ 閉校したクラスについて</h4>
+        <p>閉校したクラスの報告書はサイト上には反映されなくなります。</p>
+        <p class="closing">レッスンの質向上にお役立てください！</p>
+      </div>
+    </details>
+    <!-- サイトの使用方法（講師用） -->
+    <details class="guide hidden" id="guideAdmin">
+      <summary>📖 サイトの使用方法（講師用）</summary>
+      <div class="guide-body">
+        <p>具体的な使用方法はほぼ「閲覧用」と変わりません。<br>
+           ここでは講師用のページのみの機能について説明します。</p>
+        <h4>■ レポートへの返信</h4>
+        <p>各報告書のウィンドウの下に返信欄があります。<br>
+           名前を記載し返信してください。<br>
+           削除も可能です。</p>
+        <h4>■ 未返信リスト</h4>
+        <p>2026/9/1以降に提出されたもののうち、3ヶ月以内に返信されていないものをリストアップしています。<br>
+           3ヶ月以上が経過するとリストから自然に消滅します。</p>
+        <h4>■ 返信リスト</h4>
+        <p>返信した内容を一覧で見ることができます。</p>
+        <h4>■ フォームの回答のスプレッドシートについて</h4>
+        <p>閉校したクラスのシートなどは「非表示」にすると、このサイト上にも情報が反映されなくなります。</p>
+      </div>
+    </details>
     <nav class="tabs" id="tabs"></nav>
     <p class="view-note hidden" id="viewNote"></p>
     <section class="latest hidden" id="latest"></section>
@@ -220,8 +276,10 @@
   const UNREPLIED = '__unreplied';   // 「未返信」タブ（講師のみ）の識別子
   const UNREPLIED_SINCE = new Date(2026, 8, 1).getTime(); // 未返信の対象：2026/9/1以降
   const UNREPLIED_MONTHS = 3;        // 未返信の対象：直近3ヶ月
-  const PERSON_HIDE_YEARS = 2;       // 担当者別：この年数以上更新がない人は非表示
-  const isAllView = (v) => v === PERSON || v === UNREPLIED; // 全スプレッドシートをまとめて見る画面
+  const PERSON_HIDE_YEARS = 1;       // 担当者別：この年数以上更新がない人は非表示
+  const REPLIES = '__replies';       // 「新着の返信」（閲覧用）／「返信一覧」（講師用）タブの識別子
+  const NEW_REPLY_DAYS = 7;          // この日数以内の返信に NEW を付ける
+  const isAllView = (v) => v === PERSON || v === UNREPLIED || v === REPLIES; // 全スプレッドシートをまとめて見る画面
   const PAGE_SIZE = 30;      // 1ページの件数
   const LATEST_DAYS = 7;     // 「最新の更新」に出す日数
   const LATEST_SHOW = 5;     // 「最新の更新」で最初に見せる件数
@@ -277,14 +335,27 @@
     $('pw').value = ''; $('pw').focus();
   }
 
+  // ログインした種類に合わせて「サイトの使用方法」を出す（開閉の状態はこの端末に記憶）
+  function showGuide() {
+    const isAdmin = state.role === 'admin';
+    $('guideViewer').classList.toggle('hidden', isAdmin);
+    $('guideAdmin').classList.toggle('hidden', !isAdmin);
+    const g = isAdmin ? $('guideAdmin') : $('guideViewer');
+    let saved = null;
+    try { saved = localStorage.getItem('guideOpen_' + state.role); } catch (e) {}
+    g.open = saved !== '0'; // 初めは開いた状態
+    g.ontoggle = () => { try { localStorage.setItem('guideOpen_' + state.role, g.open ? '1' : '0'); } catch (e) {} };
+  }
+
   function showApp() {
     $('loginView').classList.add('hidden');
     $('appView').classList.remove('hidden');
     $('roleBadge').textContent = state.role === 'admin' ? '講師（返信可）' : '閲覧のみ';
+    showGuide();
     document.body.classList.toggle('admin', state.role === 'admin');
     document.querySelector('meta[name="theme-color"]').content = state.role === 'admin' ? '#2f80d1' : '#f08a24';
     const v = load('view');
-    if (v === PERSON || (v === UNREPLIED && state.role === 'admin')) openAllView(v, false);
+    if (v === PERSON || v === REPLIES || (v === UNREPLIED && state.role === 'admin')) openAllView(v, false);
     else loadSource(v, false);
   }
 
@@ -350,9 +421,13 @@
     const tabs = $('tabs');
     tabs.innerHTML = '';
     const items = state.sources.map(s => ({ key: s.key, label: s.label }));
+    const loaded = state.sources.length && state.sources.every(s => state.data[s.key]);
     if (state.role === 'admin') {
-      const loaded = state.sources.length && state.sources.every(s => state.data[s.key]);
       items.push({ key: UNREPLIED, label: '未返信' + (loaded ? `（${unrepliedReports().length}）` : '') });
+      items.push({ key: REPLIES, label: '返信一覧' });
+    } else {
+      const fresh = loaded ? allReplies().filter(x => isNewReply(x.rep)).length : 0;
+      items.push({ key: REPLIES, label: '新着の返信' + (fresh ? `（${fresh}）` : '') });
     }
     items.push({ key: PERSON, label: '担当者別' });
     items.forEach(t => {
@@ -382,6 +457,7 @@
   function render() {
     if (state.view === PERSON) return renderPeople();
     if (state.view === UNREPLIED) return renderUnreplied();
+    if (state.view === REPLIES) return renderReplies();
     const d = state.data[state.view];
     if (!d) return;
     const cls = $('classFilter').value;
@@ -561,9 +637,57 @@
     return wrap;
   }
 
+  // ===== 新着の返信（閲覧用）／返信一覧（講師用） =====
+  // すべての返信を、どの報告書への返信かと一緒に新しい順で返す
+  function allReplies() {
+    return allReports()
+      .flatMap(r => r.replies.map(rep => ({ rep, r })))
+      .sort((a, b) => b.rep.date.localeCompare(a.rep.date));
+  }
+
+  // 返信日時（"2026/10/01 10:00"）が NEW_REPLY_DAYS 日以内か
+  function isNewReply(rep) {
+    const t = new Date(rep.date.replace(/\//g, '-').replace(' ', 'T')).getTime();
+    return !isNaN(t) && Date.now() - t < NEW_REPLY_DAYS * 86400000;
+  }
+
+  function renderReplies() {
+    const q = $('search').value.trim().toLowerCase();
+    const list = $('list');
+    list.innerHTML = '';
+    $('updated').textContent = '';
+    const items = allReplies().filter(x => inPeriod(x.r) &&
+      (!q || matches(x.r, q) || (x.rep.author + ' ' + x.rep.body).toLowerCase().includes(q)));
+    const box = el('section', 'latest');
+    list.appendChild(box);
+    paginate(items, box, renderReplyRow);
+  }
+
+  // 返信の1行（押すと下に報告書と返信全体が開く）
+  function renderReplyRow(x) {
+    const { rep, r } = x;
+    const wrap = el('div', 'unreplied-row');
+    const open = state.openId === rep.id;
+    const b = el('button', 'latest-item');
+    if (isNewReply(rep)) b.appendChild(el('span', 'new', 'NEW'));
+    b.append(el('span', 'tag', r.sourceLabel + '｜' + r.className),
+             el('span', '', lessonDateOf(r)),
+             el('span', '', peopleOf(r).join('、') || '（担当者なし）'),
+             el('span', 'when', rep.date),
+             el('span', 'open', open ? '▲ 閉じる' : '▼ 開く'),
+             el('span', 'snippet', '💬 ' + rep.author + '：' + rep.body.replace(/\s+/g, ' ')));
+    b.onclick = () => { state.openId = open ? null : rep.id; render(); };
+    wrap.appendChild(b);
+    if (open) wrap.appendChild(renderCard(r));
+    return wrap;
+  }
+
   // タブの一番上に出す説明文
   function renderViewNote() {
     const notes = {
+      [REPLIES]: state.role === 'admin'
+        ? 'これまでの返信を新しい順に表示しています。返信者名や返信内容でも検索できます。行を押すと報告書が開きます。'
+        : `講師からの返信を新しい順に表示しています。${NEW_REPLY_DAYS}日以内の返信には NEW が付きます。行を押すと報告書が開きます。`,
       [UNREPLIED]: `直近${UNREPLIED_MONTHS}ヶ月（2026/9/1以降）に届いた報告書のうち、まだ返信していないものです。行を押すと内容が開き、返信すると一覧から消えます。`,
       [PERSON]: `※ ${PERSON_HIDE_YEARS}年以上更新がない講師は表示されません`,
     };
