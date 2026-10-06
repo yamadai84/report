@@ -165,7 +165,11 @@
     header { padding:8px 12px; gap:8px; }
     header h1 { font-size:15px; }
     header .logo { height:26px; }
-    header .badge { font-size:11px; padding:1px 8px; }
+    header .badge { display:none; }
+    header h1 { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+    header .logo { flex:none; }
+    .pv-long { display:none; }
+    .pv-short { display:inline !important; }
     header .ghost { padding:6px 10px; font-size:13px; }
     main { padding:12px; }
     .tabs button { padding:8px 12px; }
@@ -175,6 +179,12 @@
     .period input { flex:1 1 0; min-width:0; }
     .card { padding:14px 12px; }
   }
+  /* 講師用：閲覧用ページのプレビュー */
+  .preview-bar { background:#fff3c4; color:#6b4f00; text-align:center; font-size:13px;
+                 padding:6px 12px; display:flex; justify-content:center; align-items:center; gap:10px; flex-wrap:wrap; }
+  .preview-bar button { padding:3px 12px; font-size:12px; }
+  .pv-short { display:none; }
+
   /* サイトの使用方法 */
   .guide { background:var(--card); border:1px solid var(--line); border-radius:14px;
            padding:0 16px; margin-bottom:14px; box-shadow:0 2px 8px var(--shadow); }
@@ -213,8 +223,13 @@
     <img class="logo" src="logo.png" alt="Be Color">
     <h1>LESSON <span>報告書</span></h1>
     <span class="badge" id="roleBadge"></span>
+    <button class="ghost hidden" id="previewBtn" title="閲覧用のパスワードで入った人に見える画面を確認できます">👀<span class="pv-long"> 閲覧用で見る</span><span class="pv-short"> 閲覧用</span></button>
     <button class="ghost" id="logoutBtn">ログアウト</button>
   </header>
+  <div class="preview-bar hidden" id="previewBar">
+    <span>👀 閲覧用ページのプレビュー中です（閲覧用の人にはこう見えます）</span>
+    <button class="ghost" id="previewBackBtn">講師用に戻る</button>
+  </div>
   </div>
   <main>
     <!-- サイトの使用方法（閲覧用） -->
@@ -334,7 +349,7 @@
   }
 
   function showLogin(msg) {
-    state.token = null; state.data = {}; state.sources = [];
+    state.token = null; state.data = {}; state.sources = []; state.preview = false;
     store('token', null); store('role', null);
     document.body.classList.remove('admin');
     $('appView').classList.add('hidden');
@@ -345,23 +360,46 @@
 
   // ログインした種類に合わせて「サイトの使用方法」を出す（開閉の状態はこの端末に記憶）
   function showGuide() {
-    const isAdmin = state.role === 'admin';
+    const isAdmin = isAdminView();
     $('guideViewer').classList.toggle('hidden', isAdmin);
     $('guideAdmin').classList.toggle('hidden', !isAdmin);
     const g = isAdmin ? $('guideAdmin') : $('guideViewer');
     let saved = null;
-    try { saved = localStorage.getItem('guideOpen_' + state.role); } catch (e) {}
+    const key = 'guideOpen_' + (isAdmin ? 'admin' : 'viewer');
+    try { saved = localStorage.getItem(key); } catch (e) {}
     g.open = saved !== '0'; // 初めは開いた状態
-    g.ontoggle = () => { try { localStorage.setItem('guideOpen_' + state.role, g.open ? '1' : '0'); } catch (e) {} };
+    g.ontoggle = () => { try { localStorage.setItem(key, g.open ? '1' : '0'); } catch (e) {} };
+  }
+
+  // 画面上の権限：講師が「閲覧用で見る」を押している間は閲覧用として表示する
+  function isAdminView() { return state.role === 'admin' && !state.preview; }
+
+  // 権限に合わせて、色・バッジ・使用方法・プレビューボタンを切り替える
+  function applyRoleUI() {
+    const admin = isAdminView();
+    $('roleBadge').textContent = state.preview ? '閲覧用プレビュー' : admin ? '講師（返信可）' : '閲覧のみ';
+    document.body.classList.toggle('admin', admin);
+    document.querySelector('meta[name="theme-color"]').content = admin ? '#2f80d1' : '#f08a24';
+    $('previewBtn').classList.toggle('hidden', !admin);
+    $('previewBar').classList.toggle('hidden', !state.preview);
+    showGuide();
+  }
+
+  // 講師用 ⇄ 閲覧用プレビューの切り替え（読み込み済みのデータをそのまま使う）
+  function setPreview(on) {
+    state.preview = on;
+    state.openId = null;
+    if (on && state.view === UNREPLIED) state.view = state.sources[0].key; // 閲覧用にないタブからは移動
+    applyRoleUI();
+    if (isAllView(state.view)) openAllView(state.view, false); else loadSource(state.view, false);
+    window.scrollTo(0, 0);
   }
 
   function showApp() {
     $('loginView').classList.add('hidden');
     $('appView').classList.remove('hidden');
-    $('roleBadge').textContent = state.role === 'admin' ? '講師（返信可）' : '閲覧のみ';
-    showGuide();
-    document.body.classList.toggle('admin', state.role === 'admin');
-    document.querySelector('meta[name="theme-color"]').content = state.role === 'admin' ? '#2f80d1' : '#f08a24';
+    state.preview = false;
+    applyRoleUI();
     const v = load('view');
     if (v === PERSON || v === REPLIES || (v === UNREPLIED && state.role === 'admin')) openAllView(v, false);
     else loadSource(v, false);
@@ -430,7 +468,7 @@
     tabs.innerHTML = '';
     const items = state.sources.map(s => ({ key: s.key, label: s.label }));
     const loaded = state.sources.length && state.sources.every(s => state.data[s.key]);
-    if (state.role === 'admin') {
+    if (isAdminView()) {
       items.push({ key: UNREPLIED, label: '未返信' + (loaded ? `（${unrepliedReports().length}）` : '') });
       items.push({ key: REPLIES, label: '返信一覧' });
     } else {
@@ -693,7 +731,7 @@
   // タブの一番上に出す説明文
   function renderViewNote() {
     const notes = {
-      [REPLIES]: state.role === 'admin'
+      [REPLIES]: isAdminView()
         ? 'これまでの返信を新しい順に表示しています。返信者名や返信内容でも検索できます。行を押すと報告書が開きます。'
         : `講師からの返信を新しい順に表示しています。${NEW_REPLY_DAYS}日以内の返信には NEW が付きます。行を押すと報告書が開きます。`,
       [UNREPLIED]: `直近${UNREPLIED_MONTHS}ヶ月（2026/9/1以降）に届いた報告書のうち、まだ返信していないものです。行を押すと内容が開き、返信すると一覧から消えます。`,
@@ -792,7 +830,7 @@
       const box = el('div', 'reply');
       const meta = el('div', 'meta');
       meta.appendChild(el('span', '', '💬 ' + rep.author + '　' + rep.date));
-      if (state.role === 'admin') {
+      if (isAdminView()) {
         const del = el('button', 'del', '🗑 削除');
         del.onclick = () => removeReply(rep.id, r.sourceKey);
         meta.appendChild(del);
@@ -802,7 +840,7 @@
       card.appendChild(box);
     });
 
-    if (state.role === 'admin') card.appendChild(renderReplyForm(r.id));
+    if (isAdminView()) card.appendChild(renderReplyForm(r.id));
     return card;
   }
 
@@ -848,6 +886,8 @@
       $('loginErr').textContent = e && e.message ? e.message : 'ログインに失敗しました';
     } finally { $('loginBtn').disabled = false; }
   };
+  $('previewBtn').onclick = () => setPreview(true);
+  $('previewBackBtn').onclick = () => setPreview(false);
   $('logoutBtn').onclick = () => { call('logout', state.token).catch(() => {}); showLogin(); };
   $('reloadBtn').onclick = () => isAllView(state.view) ? openAllView(state.view, true) : loadSource(state.view, true);
   const refilter = () => { state.page = 1; render(); };
