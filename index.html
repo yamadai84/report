@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LESSON 報告書｜Be Color</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#f08a24">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="報告書">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#fff6ec; --card:#ffffff; --text:#3b2a1a; --muted:#8a7360; --line:#f3e3d1;
+    --accent:#f08a24; --accent-strong:#d96c0b; --accent-soft:#ffe9d2;
+    --reply:#fff3e3; --reply-line:#f6c48e; --danger:#d93a2b;
+    --shadow:rgba(217,108,11,.07); --shadow-strong:rgba(217,108,11,.12);
+  }
+  /* 講師（管理者）でログインしたときは薄い青ベース */
+  body.admin {
+    --bg:#eef5fc; --text:#1d2b3a; --muted:#5f7184; --line:#d8e6f5;
+    --accent:#2f80d1; --accent-strong:#1f63ad; --accent-soft:#dcebfa;
+    --reply:#eaf3fd; --reply-line:#9cc4ee;
+    --shadow:rgba(31,99,173,.08); --shadow-strong:rgba(31,99,173,.14);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif;
+         font-weight:500; line-height:1.6; }
+  /* ロゴの7色を使った帯 */
+  .rainbow { height:5px; background:linear-gradient(90deg,
+    #d7141a 0 14.3%, #e8920f 0 28.6%, #f2e520 0 42.9%, #1f9446 0 57.1%,
+    #1565ad 0 71.4%, #1e2a78 0 85.7%, #8a1a7e 0); }
+  header .logo { height:34px; width:auto; display:block; }
+  .login .logo { width:220px; max-width:80%; height:auto; margin:0 auto 10px; display:block; }
+
+  /* フォームへのリンク帯 */
+  .form-link { display:block; text-align:center; padding:10px 16px; font-weight:600;
+               background:var(--accent); color:#fff; text-decoration:none; }
+  .form-link:hover { background:var(--accent-strong); }
+  .form-link::after { content:" →"; }
+
+  .top { position:sticky; top:0; z-index:2; }
+  header { background:var(--card);
+           border-bottom:3px solid var(--accent); padding:10px 16px;
+           display:flex; gap:10px; align-items:center; }
+  header h1 { font-size:18px; margin:0; flex:1; letter-spacing:.04em; white-space:nowrap; }
+  h1 span { color:var(--accent); }
+  main { max-width:820px; margin:0 auto; padding:16px; }
+
+  .badge { font-size:12px; padding:2px 10px; border-radius:99px; background:var(--accent-soft);
+           color:var(--accent-strong); white-space:nowrap; }
+  button { font:inherit; border:0; border-radius:10px; padding:8px 16px; cursor:pointer;
+           background:var(--accent); color:#fff; font-weight:600; }
+  button:hover { background:var(--accent-strong); }
+  button.ghost { background:var(--card); color:var(--muted); border:1px solid var(--line); font-weight:400; }
+  button.ghost:hover { background:var(--accent-soft); }
+  button.link { background:none; color:var(--danger); padding:0 4px; font-size:12px; font-weight:400; }
+  button.del { background:#fff; color:var(--danger); border:1px solid #f1c4bf; padding:1px 10px;
+               font-size:12px; font-weight:400; border-radius:8px; }
+  button.del:hover { background:#fdecea; }
+  .note { color:var(--muted); font-size:12px; margin:12px 2px 0; }
+  .view-note { color:var(--muted); font-size:13px; margin:0 0 12px; padding:8px 12px;
+               background:var(--card); border-radius:10px; border:1px solid var(--line); }
+  .latest-item .open { color:var(--muted); font-size:12px; }
+  .unreplied-row .card { margin:6px 0 12px; }
+  button:disabled { opacity:.5; cursor:default; }
+  input, textarea, select { font:inherit; color:var(--text); padding:9px 12px; border:1px solid var(--line);
+                            border-radius:10px; background:#fff; }
+  input, textarea { width:100%; }
+  input:focus, textarea:focus, select:focus { outline:2px solid var(--accent-soft); border-color:var(--accent); }
+  textarea { min-height:80px; resize:vertical; }
+
+  /* ログイン */
+  .login { max-width:360px; margin:12vh auto 0; background:var(--card); padding:32px 28px;
+           border-radius:18px; box-shadow:0 6px 24px var(--shadow-strong); text-align:center; }
+  .login h1 { font-size:22px; margin:0 0 4px; }
+  .login p { color:var(--muted); font-size:13px; margin:0 0 18px; }
+  .login button { width:100%; margin-top:12px; padding:10px; }
+  .error { color:var(--danger); font-size:14px; min-height:1.4em; margin-top:8px; }
+
+  /* スプレッドシート切り替えタブ */
+  .tabs { display:flex; gap:6px; margin-bottom:14px; border-bottom:2px solid var(--line); }
+  .tabs button { background:none; color:var(--muted); border-radius:10px 10px 0 0; padding:8px 18px;
+                 border-bottom:3px solid transparent; margin-bottom:-2px; }
+  .tabs button:hover { background:var(--accent-soft); }
+  .tabs button.active { color:var(--accent-strong); border-bottom-color:var(--accent); }
+
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+  .toolbar input { flex:1 1 200px; width:auto; }
+  .status { color:var(--muted); font-size:13px; margin-bottom:10px; display:flex; justify-content:space-between; }
+
+  .card { background:var(--card); border-radius:14px; padding:16px; margin-bottom:14px;
+          box-shadow:0 2px 8px var(--shadow); border-left:4px solid var(--accent); }
+  .card .ts { color:var(--muted); font-size:13px; margin-bottom:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .tag { font-size:12px; padding:1px 10px; border-radius:99px; background:var(--accent-soft);
+         color:var(--accent-strong); font-weight:600; }
+  .field { padding:6px 0; border-top:1px dashed var(--line); }
+  .field:first-of-type { border-top:0; }
+  .field .label { font-size:12px; color:var(--muted); }
+  .field .value { white-space:pre-wrap; word-break:break-word; }
+  .reply { background:var(--reply); border-left:3px solid var(--reply-line); border-radius:10px;
+           padding:10px 12px; margin-top:8px; }
+  .reply .meta { font-size:12px; color:var(--muted); display:flex; justify-content:space-between; }
+  .reply .body { white-space:pre-wrap; word-break:break-word; }
+  .reply-form { margin-top:10px; display:grid; gap:8px; }
+  .reply-form .row { display:flex; gap:8px; }
+  .reply-form .row input { max-width:180px; }
+  .reply-form .row button { margin-left:auto; }
+  .empty, .loading { text-align:center; color:var(--muted); padding:40px 0; }
+  .spinner { width:28px; height:28px; margin:0 auto 10px; border-radius:50%;
+             border:3px solid var(--accent-soft); border-top-color:var(--accent); animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  /* 担当者別 */
+  .people { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+  .person { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:14px;
+            padding:14px; text-align:left; box-shadow:0 2px 8px var(--shadow); }
+  .person:hover { background:var(--accent-soft); }
+  .person small { display:block; color:var(--muted); font-weight:400; font-size:12px; margin-top:2px; }
+  .detail-head { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  .detail-head h2 { font-size:18px; margin:0; }
+  /* 最新の更新 */
+  .latest { background:var(--card); border:2px solid var(--accent-soft); border-radius:14px;
+            padding:12px 14px; margin-bottom:14px; }
+  .latest h3 { margin:0 0 6px; font-size:15px; display:flex; align-items:center; gap:8px; }
+  .latest h3 small { color:var(--muted); font-weight:400; font-size:12px; }
+  .latest-item { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; width:100%;
+                 background:none; color:var(--text); font-weight:400; text-align:left;
+                 padding:8px 6px; border-radius:8px; border-top:1px dashed var(--line); }
+  .latest-item:hover { background:var(--accent-soft); }
+  .latest-item .when { margin-left:auto; color:var(--muted); font-size:12px; }
+  .latest-empty { color:var(--muted); font-size:13px; padding:4px 6px; }
+  .latest .more { margin-top:6px; padding:4px 12px; font-size:13px; }
+  .card.flash { animation:flash 2.5s ease-out; }
+  @keyframes flash { 0%, 40% { box-shadow:0 0 0 4px var(--accent); } 100% { box-shadow:0 2px 8px var(--shadow); } }
+
+  /* 期間 */
+  .period { align-items:center; }
+  .period label { color:var(--muted); font-size:13px; }
+  .period input { width:auto; flex:0 1 160px; }
+
+  /* ページ送り */
+  .pager { display:flex; justify-content:center; flex-wrap:wrap; gap:6px; margin:18px 0 8px; }
+  .pager button { min-width:40px; padding:6px 10px; }
+  .pager button.current { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .pager .gap { color:var(--muted); align-self:center; }
+  /* スマホ向け */
+  button { white-space:nowrap; }
+  .tabs { overflow-x:auto; scrollbar-width:none; }
+  .tabs::-webkit-scrollbar { display:none; }
+  .tabs button { white-space:nowrap; flex:none; }
+  @media (max-width:600px) {
+    header { padding:8px 12px; gap:8px; }
+    header h1 { font-size:15px; }
+    header .logo { height:26px; }
+    header .badge { font-size:11px; padding:1px 8px; }
+    header .ghost { padding:6px 10px; font-size:13px; }
+    main { padding:12px; }
+    .tabs button { padding:8px 12px; }
+    .toolbar select { flex:1 1 100%; }
+    .toolbar input[type=search] { flex:1 1 0; min-width:0; }
+    .period label { flex:1 1 100%; }
+    .period input { flex:1 1 0; min-width:0; }
+    .card { padding:14px 12px; }
+  }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<a id="formLink" class="form-link hidden" target="_blank" rel="noopener"></a>
+
+<div id="loginView" class="login hidden">
+  <img class="logo" src="logo.png" alt="Be Color DOUBLE DUTCH SCHOOL">
+  <h1>LESSON <span>報告書</span></h1>
+  <p>パスワードを入力してください</p>
+  <form id="loginForm">
+    <input id="pw" type="password" placeholder="パスワード" autocomplete="current-password" required>
+    <button type="submit" id="loginBtn">ログイン</button>
+    <div class="error" id="loginErr"></div>
+  </form>
+</div>
+
+<div id="appView" class="hidden">
+  <div class="top">
+  <div class="rainbow"></div>
+  <header>
+    <img class="logo" src="logo.png" alt="Be Color">
+    <h1>LESSON <span>報告書</span></h1>
+    <span class="badge" id="roleBadge"></span>
+    <button class="ghost" id="logoutBtn">ログアウト</button>
+  </header>
+  </div>
+  <main>
+    <nav class="tabs" id="tabs"></nav>
+    <p class="view-note hidden" id="viewNote"></p>
+    <section class="latest hidden" id="latest"></section>
+    <div class="toolbar">
+      <select id="classFilter"><option value="">すべての教室</option></select>
+      <input id="search" type="search" placeholder="キーワードで絞り込み（名前・日付など）">
+      <button class="ghost" id="reloadBtn" title="スプレッドシートから最新を読み直します">最新に更新</button>
+    </div>
+    <div class="toolbar period" id="periodBar">
+      <label for="from">期間（レッスン日）</label>
+      <input type="date" id="from"> 〜 <input type="date" id="to">
+      <button class="ghost" id="clearPeriod">クリア</button>
+    </div>
+    <div class="status"><span id="count"></span><span id="updated"></span></div>
+    <div id="list"></div>
+    <nav class="pager" id="pager"></nav>
+  </main>
+</div>
+
+<script>
+  const PERSON = '__person';         // 「担当者別」タブの識別子
+  const UNREPLIED = '__unreplied';   // 「未返信」タブ（講師のみ）の識別子
+  const UNREPLIED_SINCE = new Date(2026, 8, 1).getTime(); // 未返信の対象：2026/9/1以降
+  const UNREPLIED_MONTHS = 3;        // 未返信の対象：直近3ヶ月
+  const PERSON_HIDE_YEARS = 2;       // 担当者別：この年数以上更新がない人は非表示
+  const isAllView = (v) => v === PERSON || v === UNREPLIED; // 全スプレッドシートをまとめて見る画面
+  const PAGE_SIZE = 30;      // 1ページの件数
+  const LATEST_DAYS = 7;     // 「最新の更新」に出す日数
+  const LATEST_SHOW = 5;     // 「最新の更新」で最初に見せる件数
+  const state = { token: null, role: null, view: null, sources: [], data: {}, person: null,
+                  page: 1, latestOpen: false, openId: null };
+  const $ = (id) => document.getElementById(id);
+
+  // ▼ Apps Script の「ウェブアプリのURL」（…/exec）をここに貼る
+  const API_URL = 'https://script.google.com/macros/s/AKfycbyTSO2RcVJsK3rIb6jHq9x6izv-NDv2nWduio5Yrc6afn5e4vugq3KiBByXbdvLmQKZCg/exec';
+
+  // Apps Script の関数を呼び出す（text/plain で送ると追加の確認通信なしで届く）
+  async function call(fn, ...args) {
+    let res;
+    try {
+      res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: fn, args })
+      });
+    } catch (e) {
+      throw new Error('サーバーに接続できませんでした。通信環境を確認してください。');
+    }
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    return data.result;
+  }
+  function store(key, val) {
+    try { val == null ? sessionStorage.removeItem(key) : sessionStorage.setItem(key, val); } catch (e) {}
+  }
+  function load(key) { try { return sessionStorage.getItem(key); } catch (e) { return null; } }
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text; // textContentで表示しXSSを防ぐ
+    return e;
+  }
+
+  function handleError(err) {
+    if (String(err && err.message).includes('SESSION_EXPIRED')) {
+      showLogin('ログインの有効期限が切れました。再度ログインしてください。');
+    } else {
+      alert(err && err.message ? err.message : err);
+    }
+  }
+
+  function showLogin(msg) {
+    state.token = null; state.data = {}; state.sources = [];
+    store('token', null); store('role', null);
+    document.body.classList.remove('admin');
+    $('appView').classList.add('hidden');
+    $('loginView').classList.remove('hidden');
+    $('loginErr').textContent = msg || '';
+    $('pw').value = ''; $('pw').focus();
+  }
+
+  function showApp() {
+    $('loginView').classList.add('hidden');
+    $('appView').classList.remove('hidden');
+    $('roleBadge').textContent = state.role === 'admin' ? '講師（返信可）' : '閲覧のみ';
+    document.body.classList.toggle('admin', state.role === 'admin');
+    document.querySelector('meta[name="theme-color"]').content = state.role === 'admin' ? '#2f80d1' : '#f08a24';
+    const v = load('view');
+    if (v === PERSON || (v === UNREPLIED && state.role === 'admin')) openAllView(v, false);
+    else loadSource(v, false);
+  }
+
+  function showLoading() {
+    $('list').innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>';
+    $('count').textContent = ''; $('updated').textContent = '';
+    $('pager').innerHTML = ''; $('latest').classList.add('hidden');
+    renderViewNote();
+  }
+
+  // サーバーから受け取ったスプレッドシート1つ分を保存
+  function saveResult(res) {
+    state.sources = res.sources;
+    const src = res.sources.find(s => s.key === res.current) || {};
+    res.reports.forEach(r => { r.sourceKey = res.current; r.sourceLabel = src.label; });
+    state.data[res.current] = res;
+  }
+
+  function setView(v) { state.view = v; store('view', v); renderAll(); }
+
+  // スプレッドシート1つ分を表示（一度読んだものは再利用）
+  async function loadSource(key, force) {
+    if (!force && key && state.data[key]) { setView(key); return; }
+    state.view = key; renderTabs(); showLoading();
+    try {
+      const res = await call('getReports', state.token, key, !!force);
+      saveResult(res);
+      setView(res.current);
+    } catch (e) { handleError(e); }
+  }
+
+  // 担当者別・未返信：すべてのスプレッドシートを読み込んでから表示
+  async function openAllView(view, force) {
+    state.view = view; store('view', view); renderTabs(); showLoading();
+    try {
+      const done = {};
+      if (!state.sources.length) {
+        const first = await call('getReports', state.token, null, !!force);
+        saveResult(first); done[first.current] = true;
+        renderTabs();
+      }
+      const need = state.sources.filter(s => !done[s.key] && (force || !state.data[s.key]));
+      const results = await Promise.all(need.map(s => call('getReports', state.token, s.key, !!force)));
+      results.forEach(saveResult);
+      renderAll();
+    } catch (e) { handleError(e); }
+  }
+
+  function renderAll() {
+    renderTabs();
+    const isPerson = state.view === PERSON;
+    $('classFilter').classList.toggle('hidden', isAllView(state.view));
+    $('periodBar').classList.toggle('hidden', isPerson && !state.person);
+    renderLatest();
+    renderViewNote();
+    $('search').placeholder = isPerson && !state.person
+      ? '担当者名で絞り込み' : 'キーワードで絞り込み（名前・日付など）';
+    if (!isAllView(state.view)) fillClasses();
+    render();
+  }
+
+  function renderTabs() {
+    const tabs = $('tabs');
+    tabs.innerHTML = '';
+    const items = state.sources.map(s => ({ key: s.key, label: s.label }));
+    if (state.role === 'admin') {
+      const loaded = state.sources.length && state.sources.every(s => state.data[s.key]);
+      items.push({ key: UNREPLIED, label: '未返信' + (loaded ? `（${unrepliedReports().length}）` : '') });
+    }
+    items.push({ key: PERSON, label: '担当者別' });
+    items.forEach(t => {
+      const b = el('button', t.key === state.view ? 'active' : '', t.label);
+      b.onclick = () => {
+        clearFilters();
+        state.person = null; state.latestOpen = false;
+        if (isAllView(t.key)) openAllView(t.key, false); else loadSource(t.key, false);
+      };
+      tabs.appendChild(b);
+    });
+  }
+
+  function fillClasses() {
+    const sel = $('classFilter'), cur = sel.value;
+    const classes = state.data[state.view].classes;
+    sel.innerHTML = '<option value="">すべての教室</option>';
+    classes.forEach(n => { const o = el('option', '', n); o.value = n; sel.appendChild(o); });
+    sel.value = classes.includes(cur) ? cur : '';
+  }
+
+  function matches(r, q) {
+    return !q || [r.timestamp, r.className, ...r.fields.map(f => f.value), ...r.replies.map(x => x.body)]
+      .join(' ').toLowerCase().includes(q);
+  }
+
+  function render() {
+    if (state.view === PERSON) return renderPeople();
+    if (state.view === UNREPLIED) return renderUnreplied();
+    const d = state.data[state.view];
+    if (!d) return;
+    const cls = $('classFilter').value;
+    const q = $('search').value.trim().toLowerCase();
+    const items = d.reports.filter(r => (!cls || r.className === cls) && matches(r, q) && inPeriod(r));
+    $('updated').textContent = 'データ取得：' + d.updatedAt;
+    const list = $('list');
+    list.innerHTML = '';
+    paginate(items, list);
+  }
+
+  // ===== 絞り込み・ページ送り =====
+  function clearFilters() {
+    $('classFilter').value = ''; $('search').value = ''; $('from').value = ''; $('to').value = '';
+    state.page = 1;
+  }
+
+  // "2026/07/20" "2026-7-20" "2026年7月20日" などを 20260720 に
+  function dateKey(str) {
+    const m = String(str || '').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+    return m ? Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]) : null;
+  }
+
+  function fieldOf(r, word) {
+    const f = r.fields.find(f => f.label.includes(word));
+    return f ? f.value : '';
+  }
+
+  // レッスン日（なければ送信日）
+  function lessonDateOf(r) {
+    return fieldOf(r, 'レッスン日') || r.timestamp.split(' ')[0];
+  }
+
+  function inPeriod(r) {
+    const from = dateKey($('from').value), to = dateKey($('to').value);
+    if (!from && !to) return true;
+    const k = dateKey(lessonDateOf(r));
+    return k != null && (!from || k >= from) && (!to || k <= to);
+  }
+
+  // items を PAGE_SIZE 件ずつ list に表示し、ページ送りを作る
+  function paginate(items, list, renderItem = renderCard) {
+    const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    state.page = Math.min(Math.max(1, state.page), pages);
+    const start = (state.page - 1) * PAGE_SIZE;
+    const shown = items.slice(start, start + PAGE_SIZE);
+    $('count').textContent = items.length > PAGE_SIZE
+      ? `${items.length}件中 ${start + 1}〜${start + shown.length}件目` : items.length + '件';
+    if (!items.length) list.appendChild(el('div', 'empty', '該当する報告書はありません'));
+    shown.forEach(r => list.appendChild(renderItem(r)));
+    renderPager(pages);
+  }
+
+  function renderPager(pages) {
+    const pager = $('pager');
+    pager.innerHTML = '';
+    if (pages <= 1) return;
+    const go = (n) => { state.page = n; render(); scrollToList(); };
+    const btn = (label, n, disabled, current) => {
+      const b = el('button', 'ghost' + (current ? ' current' : ''), label);
+      b.disabled = !!disabled;
+      b.onclick = () => go(n);
+      pager.appendChild(b);
+    };
+    btn('‹ 前へ', state.page - 1, state.page === 1);
+    let last = 0;
+    for (let n = 1; n <= pages; n++) {
+      if (n !== 1 && n !== pages && Math.abs(n - state.page) > 2) continue;
+      if (n - last > 1) pager.appendChild(el('span', 'gap', '…'));
+      btn(String(n), n, false, n === state.page);
+      last = n;
+    }
+    btn('次へ ›', state.page + 1, state.page === pages);
+  }
+
+  function scrollToList() {
+    const top = $('count').getBoundingClientRect().top + window.scrollY - 80;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }
+
+  // ===== 最新の更新（1週間以内に送信された報告書） =====
+  function renderLatest() {
+    const box = $('latest');
+    const d = state.view !== PERSON && state.data[state.view];
+    box.classList.toggle('hidden', !d);
+    if (!d) return;
+    box.innerHTML = '';
+    const since = Date.now() - LATEST_DAYS * 86400000;
+    const items = d.reports.filter(r => r.time >= since);
+    const h = el('h3', '', '🆕 最新の更新');
+    h.appendChild(el('small', '', `直近${LATEST_DAYS}日間・${items.length}件`));
+    box.appendChild(h);
+    if (!items.length) { box.appendChild(el('div', 'latest-empty', 'この1週間の更新はありません')); return; }
+    const shown = state.latestOpen ? items : items.slice(0, LATEST_SHOW);
+    shown.forEach(r => {
+      const b = el('button', 'latest-item');
+      b.append(el('span', 'tag', r.className),
+               el('span', '', lessonDateOf(r)),
+               el('span', '', peopleOf(r).join('、') || '（担当者なし）'),
+               el('span', 'when', ago(r.time)));
+      b.onclick = () => jumpTo(r);
+      box.appendChild(b);
+    });
+    if (items.length > LATEST_SHOW) {
+      const more = el('button', 'ghost more', state.latestOpen ? '閉じる' : `すべて表示（${items.length}件）`);
+      more.onclick = () => { state.latestOpen = !state.latestOpen; renderLatest(); };
+      box.appendChild(more);
+    }
+  }
+
+  function ago(time) {
+    const days = Math.floor((Date.now() - time) / 86400000);
+    if (days <= 0) {
+      const hours = Math.floor((Date.now() - time) / 3600000);
+      return hours <= 0 ? 'たった今' : hours + '時間前';
+    }
+    return days === 1 ? '昨日' : days + '日前';
+  }
+
+  // 指定の報告書があるページを開いて、そこまでスクロール
+  function jumpTo(r) {
+    clearFilters();
+    const idx = state.data[state.view].reports.indexOf(r);
+    state.page = Math.floor(Math.max(0, idx) / PAGE_SIZE) + 1;
+    render();
+    const card = document.querySelector(`.card[data-id="${CSS.escape(r.id)}"]`);
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+  }
+
+  // ===== 担当者別 =====
+  const normalize = (name) => name.replace(/[\s　]+/g, '');
+
+  // 報告書の「担当者」欄から名前を取り出す（「、」「,」「/」区切りの複数名にも対応）
+  function peopleOf(r) {
+    const f = r.fields.find(f => f.label.trim() === '担当者') || r.fields.find(f => f.label.includes('担当'));
+    if (!f || !f.value) return [];
+    return f.value.split(/[、,，\/／\n]+/).map(s => s.trim()).filter(Boolean);
+  }
+
+  function allReports() {
+    return Object.values(state.data).flatMap(d => d.reports).sort((a, b) => b.time - a.time);
+  }
+
+  // ===== 未返信（講師のみ） =====
+  function unrepliedReports() {
+    const limit = new Date();
+    limit.setMonth(limit.getMonth() - UNREPLIED_MONTHS);
+    const since = Math.max(UNREPLIED_SINCE, limit.getTime());
+    return allReports().filter(r => !r.replies.length && r.time >= since);
+  }
+
+  function renderUnreplied() {
+    const q = $('search').value.trim().toLowerCase();
+    const list = $('list');
+    list.innerHTML = '';
+    $('updated').textContent = '';
+    const box = el('section', 'latest');
+    list.appendChild(box);
+    paginate(unrepliedReports().filter(r => matches(r, q) && inPeriod(r)), box, renderUnrepliedRow);
+  }
+
+  // 未返信の1行（押すと下に報告書が開き、そのまま返信できる）
+  function renderUnrepliedRow(r) {
+    const wrap = el('div', 'unreplied-row');
+    const open = state.openId === r.id;
+    const b = el('button', 'latest-item');
+    b.append(el('span', 'tag', r.sourceLabel + '｜' + r.className),
+             el('span', '', lessonDateOf(r)),
+             el('span', '', peopleOf(r).join('、') || '（担当者なし）'),
+             el('span', 'when', ago(r.time)),
+             el('span', 'open', open ? '▲ 閉じる' : '▼ 開く'));
+    b.onclick = () => { state.openId = open ? null : r.id; render(); };
+    wrap.appendChild(b);
+    if (open) wrap.appendChild(renderCard(r));
+    return wrap;
+  }
+
+  // タブの一番上に出す説明文
+  function renderViewNote() {
+    const notes = {
+      [UNREPLIED]: `直近${UNREPLIED_MONTHS}ヶ月（2026/9/1以降）に届いた報告書のうち、まだ返信していないものです。行を押すと内容が開き、返信すると一覧から消えます。`,
+      [PERSON]: `※ ${PERSON_HIDE_YEARS}年以上更新がない講師は表示されません`,
+    };
+    const text = notes[state.view];
+    $('viewNote').textContent = text || '';
+    $('viewNote').classList.toggle('hidden', !text);
+  }
+
+  function renderPeople() {
+    const q = $('search').value.trim().toLowerCase();
+    const list = $('list');
+    list.innerHTML = '';
+    $('updated').textContent = '';
+
+    if (state.person) {
+      // その人の報告書一覧
+      const items = allReports().filter(r =>
+        peopleOf(r).some(n => normalize(n) === state.person.key) && matches(r, q) && inPeriod(r));
+      const head = el('div', 'detail-head');
+      const back = el('button', 'ghost', '← 担当者一覧');
+      back.onclick = () => { state.person = null; clearFilters(); renderAll(); };
+      head.append(back, el('h2', '', state.person.name + ' さん'));
+      list.appendChild(head);
+      paginate(items, list);
+      return;
+    }
+
+    // 担当者一覧（名前順）
+    const map = new Map();
+    allReports().forEach(r => peopleOf(r).forEach(name => {
+      const key = normalize(name);
+      const p = map.get(key) || { key, name, count: 0, latest: r.timestamp, latestTime: r.time };
+      p.count++;
+      map.set(key, p);
+    }));
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - PERSON_HIDE_YEARS);
+    const people = [...map.values()]
+      .filter(p => p.latestTime >= cutoff.getTime())
+      .filter(p => !q || p.name.toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    $('pager').innerHTML = '';
+    $('count').textContent = people.length + '人';
+    if (!people.length) { list.appendChild(el('div', 'empty', '該当する担当者はいません')); return; }
+    const grid = el('div', 'people');
+    people.forEach(p => {
+      const b = el('button', 'person', p.name);
+      b.appendChild(el('small', '', p.count + '件・最新 ' + p.latest.split(' ')[0]));
+      b.onclick = () => { state.person = p; clearFilters(); renderAll(); window.scrollTo(0, 0); };
+      grid.appendChild(b);
+    });
+    list.appendChild(grid);
+  }
+
+  // ===== カード =====
+  function renderCard(r) {
+    const card = el('div', 'card');
+    card.dataset.id = r.id;
+    const ts = el('div', 'ts');
+    const tag = isAllView(state.view) ? r.sourceLabel + '｜' + r.className : r.className;
+    ts.append(el('span', 'tag', tag), el('span', '', r.timestamp));
+    card.appendChild(ts);
+    r.fields.forEach(f => {
+      if (!f.value) return;
+      const field = el('div', 'field');
+      field.appendChild(el('div', 'label', f.label));
+      field.appendChild(el('div', 'value', f.value));
+      card.appendChild(field);
+    });
+
+    r.replies.forEach(rep => {
+      const box = el('div', 'reply');
+      const meta = el('div', 'meta');
+      meta.appendChild(el('span', '', '💬 ' + rep.author + '　' + rep.date));
+      if (state.role === 'admin') {
+        const del = el('button', 'del', '🗑 削除');
+        del.onclick = () => removeReply(rep.id, r.sourceKey);
+        meta.appendChild(del);
+      }
+      box.appendChild(meta);
+      box.appendChild(el('div', 'body', rep.body));
+      card.appendChild(box);
+    });
+
+    if (state.role === 'admin') card.appendChild(renderReplyForm(r.id));
+    return card;
+  }
+
+  function renderReplyForm(reportId) {
+    const form = el('form', 'reply-form');
+    const ta = el('textarea'); ta.placeholder = 'この報告書に返信…'; ta.required = true;
+    const row = el('div', 'row');
+    const name = el('input'); name.placeholder = '講師名';
+    try { name.value = localStorage.getItem('authorName') || ''; } catch (e) {}
+    const btn = el('button', '', '返信する'); btn.type = 'submit';
+    row.append(name, btn);
+    form.append(ta, row);
+    form.onsubmit = async (ev) => {
+      ev.preventDefault();
+      if (!ta.value.trim()) return;
+      btn.disabled = true; btn.textContent = '送信中…';
+      try { localStorage.setItem('authorName', name.value.trim()); } catch (e) {}
+      try {
+        saveResult(await call('postReply', state.token, reportId, name.value, ta.value));
+        renderAll();
+      } catch (e) { handleError(e); btn.disabled = false; btn.textContent = '返信する'; }
+    };
+    return form;
+  }
+
+  async function removeReply(replyId, sourceKey) {
+    if (!confirm('この返信を削除しますか？')) return;
+    try {
+      saveResult(await call('deleteReply', state.token, replyId, sourceKey));
+      renderAll();
+    } catch (e) { handleError(e); }
+  }
+
+  $('loginForm').onsubmit = async (ev) => {
+    ev.preventDefault();
+    $('loginBtn').disabled = true; $('loginErr').textContent = '';
+    try {
+      const res = await call('login', $('pw').value);
+      state.token = res.token; state.role = res.role;
+      store('token', res.token); store('role', res.role);
+      showApp();
+    } catch (e) {
+      $('loginErr').textContent = e && e.message ? e.message : 'ログインに失敗しました';
+    } finally { $('loginBtn').disabled = false; }
+  };
+  $('logoutBtn').onclick = () => { call('logout', state.token).catch(() => {}); showLogin(); };
+  $('reloadBtn').onclick = () => isAllView(state.view) ? openAllView(state.view, true) : loadSource(state.view, true);
+  const refilter = () => { state.page = 1; render(); };
+  $('search').oninput = refilter;
+  $('classFilter').onchange = refilter;
+  $('from').onchange = refilter;
+  $('to').onchange = refilter;
+  $('clearPeriod').onclick = () => { $('from').value = ''; $('to').value = ''; refilter(); };
+
+  // フォームへのリンク（ログイン前から表示）
+  call('getPublicInfo').then(info => {
+    if (!info.formLink) return;
+    const a = $('formLink');
+    a.href = info.formLink.url; a.textContent = info.formLink.text;
+    a.classList.remove('hidden');
+  }).catch(() => {});
+
+  // ページ再読み込み時はセッションを引き継ぐ
+  state.token = load('token'); state.role = load('role');
+  if (state.token) showApp(); else showLogin();
+</script>
+</body>
+</html>
