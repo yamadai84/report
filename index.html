@@ -183,6 +183,10 @@
   .monthly-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
   .monthly-bar label { color:var(--muted); font-size:13px; }
   .monthly-bar select { flex:1 1 220px; min-width:0; }
+  .digest-card { background:#fff; border-radius:14px; box-shadow:0 2px 8px var(--shadow); padding:20px 22px; line-height:1.75; overflow-wrap:anywhere; }
+  .digest-group { font-weight:700; font-size:16px; margin-top:22px; padding-bottom:4px; border-bottom:1px solid #e6e0d8; }
+  .digest-group:first-child { margin-top:0; }
+  .digest-head { font-weight:700; margin-top:10px; }
   .doc-frame { display:block; width:100%; min-height:240px; border:0; border-radius:14px;
                background:#fff; box-shadow:0 2px 8px var(--shadow); }
 
@@ -254,6 +258,9 @@
         <p class="small">※最終更新から1年が経つと、その名義のボタンは消滅します。</p>
         <h4>■ 更新</h4>
         <p>10分に一度自動更新されます。ボタンから更新も可能です。</p>
+        <h4>■ 週間まとめ</h4>
+        <p>LINEの各グループの会話や報告書をAIが要約したものです。毎週月曜に更新されます。<br>
+           正確な内容は各グループのトークをご確認ください。</p>
         <h4>■ 閉校したクラスについて</h4>
         <p>閉校したクラスの報告書はサイト上には反映されなくなります。</p>
         <p class="closing">レッスンの質向上にお役立てください！</p>
@@ -310,6 +317,7 @@
   const REPLIES = '__replies';       // 「新着の返信」（閲覧用）／「返信一覧」（講師用）タブの識別子
   const NEW_REPLY_DAYS = 7;          // この日数以内の返信に NEW を付ける
   const MONTHLY = '__monthly';       // 「月報」タブ（Google ドキュメント）の識別子
+  const DIGEST = '__digest';         // 「週間まとめ」タブの識別子
   const isAllView = (v) => v === PERSON || v === UNREPLIED || v === REPLIES; // 全スプレッドシートをまとめて見る画面
   const PAGE_SIZE = 30;      // 1ページの件数
   const LATEST_DAYS = 7;     // 「最新の更新」に出す日数
@@ -399,7 +407,7 @@
     state.openId = null;
     if (on && state.view === UNREPLIED) state.view = state.sources[0].key; // 閲覧用にないタブからは移動
     applyRoleUI();
-    if (state.view === MONTHLY) renderAll();
+    if (state.view === MONTHLY || state.view === DIGEST) renderAll();
     else if (isAllView(state.view)) openAllView(state.view, false); else loadSource(state.view, false);
     window.scrollTo(0, 0);
   }
@@ -410,7 +418,11 @@
     state.preview = false;
     applyRoleUI();
     const v = load('view');
-    if (v === MONTHLY) openMonthly();
+    if (v === MONTHLY || v === DIGEST) {
+      if (v === MONTHLY) openMonthly(); else openDigest();
+      // 再読み込み直後でも「アクティブ」「チーム」のタブが出るように、一覧を裏で読む
+      call('getReports', state.token, null, false).then(res => { saveResult(res); renderTabs(); }).catch(() => {});
+    }
     else if (v === PERSON || v === REPLIES || (v === UNREPLIED && state.role === 'admin')) openAllView(v, false);
     else loadSource(v, false);
   }
@@ -463,7 +475,7 @@
   function renderAll() {
     renderTabs();
     const isPerson = state.view === PERSON;
-    const isMonthly = state.view === MONTHLY;
+    const isMonthly = state.view === MONTHLY || state.view === DIGEST; // データの一覧を使わない画面
     ['filterBar', 'statusBar', 'pager'].forEach(id => $(id).classList.toggle('hidden', isMonthly));
     $('classFilter').classList.toggle('hidden', isAllView(state.view));
     $('periodBar').classList.toggle('hidden', (isPerson && !state.person) || isMonthly);
@@ -489,12 +501,14 @@
     }
     items.push({ key: PERSON, label: '担当者別' });
     items.push({ key: MONTHLY, label: '月報' });
+    items.push({ key: DIGEST, label: '週間まとめ' });
     items.forEach(t => {
       const b = el('button', t.key === state.view ? 'active' : '', t.label);
       b.onclick = () => {
         clearFilters();
         state.person = null; state.latestOpen = false;
         if (t.key === MONTHLY) openMonthly();
+        else if (t.key === DIGEST) openDigest();
         else if (isAllView(t.key)) openAllView(t.key, false); else loadSource(t.key, false);
       };
       tabs.appendChild(b);
@@ -519,6 +533,7 @@
     if (state.view === UNREPLIED) return renderUnreplied();
     if (state.view === REPLIES) return renderReplies();
     if (state.view === MONTHLY) return renderMonthly();
+    if (state.view === DIGEST) return renderDigest();
     const d = state.data[state.view];
     if (!d) return;
     const cls = $('classFilter').value;
@@ -833,9 +848,56 @@
     return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, m => m + fix) : fix + html;
   }
 
+  // ===== 週間まとめ（LINEに配信した要約） =====
+  function openDigest() {
+    state.view = DIGEST; store('view', DIGEST);
+    state.person = null;
+    renderAll();
+  }
+
+  async function renderDigest(force) {
+    const list = $('list');
+    if (force) state.digests = null;
+    if (!state.digests) {
+      list.innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>';
+      try {
+        state.digests = await call('getDigests', state.token);
+      } catch (e) { handleError(e); return; }
+      if (state.view !== DIGEST) return; // 読み込み中に別のタブが選ばれた
+    }
+    list.innerHTML = '';
+    const items = state.digests;
+    if (!items.length) { list.appendChild(el('div', 'empty', 'まとめはまだありません。最初の配信後に表示されます。')); return; }
+
+    const bar = el('div', 'monthly-bar');
+    const sel = el('select');
+    sel.setAttribute('aria-label', '表示する週');
+    items.forEach((d, i) => {
+      const o = el('option', '', d.period + (i === 0 ? '（最新）' : ''));
+      o.value = i;
+      sel.appendChild(o);
+    });
+    const card = el('div', 'digest-card');
+    const show = () => {
+      card.innerHTML = '';
+      items[sel.value].body.split(/\r?\n/).forEach(line => {
+        if (!line.trim()) return;
+        const cls = /^【/.test(line) ? 'digest-group' : /^■/.test(line) ? 'digest-head' : '';
+        card.appendChild(el('div', cls, line));
+      });
+    };
+    sel.onchange = show;
+    const reload = el('button', 'ghost', '最新に更新');
+    reload.onclick = () => renderDigest(true);
+    bar.append(el('label', '', '表示する週'), sel, reload);
+    list.append(bar, card);
+    show();
+  }
+
   // タブの一番上に出す説明文
   function renderViewNote() {
     const notes = {
+      [DIGEST]: '※AIによる要約です。正確な内容は各グループのトークをご確認ください。',
       [MONTHLY]: 'Googleドキュメント「月報」の内容をそのまま表示しています。下のメニューから見たい月報を選んでください。',
       [REPLIES]: isAdminView()
         ? 'これまでの返信を新しい順に表示しています。返信者名や返信内容でも検索できます。行を押すと報告書が開きます。'
