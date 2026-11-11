@@ -184,7 +184,11 @@
   .monthly-bar label { color:var(--muted); font-size:13px; }
   .monthly-bar select { flex:1 1 220px; min-width:0; }
   .digest-card { background:#fff; border-radius:14px; box-shadow:0 2px 8px var(--shadow); padding:20px 22px; line-height:1.75; overflow-wrap:anywhere; }
-  .digest-group { font-weight:700; font-size:16px; margin-top:22px; padding-bottom:4px; border-bottom:1px solid #e6e0d8; }
+  .digest-group { font-weight:700; font-size:16px; margin-top:22px; padding:4px 0 4px 10px; border-left:5px solid #b9b1a6; }
+  .digest-group.g-A { color:#d7141a; border-color:#d7141a; }
+  .digest-group.g-B { color:#1565ad; border-color:#1565ad; }
+  .digest-group.g-C { color:#1f9446; border-color:#1f9446; }
+  .digest-group.g-D { color:#8a1a7e; border-color:#8a1a7e; }
   .digest-group:first-child { margin-top:0; }
   .digest-head { font-weight:700; margin-top:10px; }
   .doc-frame { display:block; width:100%; min-height:240px; border:0; border-radius:14px;
@@ -882,7 +886,8 @@
       card.innerHTML = '';
       items[sel.value].body.split(/\r?\n/).forEach(line => {
         if (!line.trim()) return;
-        const cls = /^【/.test(line) ? 'digest-group' : /^■/.test(line) ? 'digest-head' : '';
+        const group = line.match(/^【([A-Z])グループ】/); // グループごとに色を分ける（A赤・B青・C緑・D紫）
+        const cls = group ? 'digest-group g-' + group[1] : /^【/.test(line) ? 'digest-group' : /^■/.test(line) ? 'digest-head' : '';
         card.appendChild(el('div', cls, line));
       });
     };
